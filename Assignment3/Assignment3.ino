@@ -40,6 +40,7 @@ int wave_freq = 0;
 int analog_data = 0;
 
 static QueueHandle_t xQueueAnalogData;
+static SemaphoreHandle_t xSemaphore;
 
 //Output digital watchdog waveform
 void vTask1(void * pvParameters) {
@@ -197,6 +198,12 @@ void setup() {
   if(xQueueAnalogData == NULL) {
     for(;;);
   }
+
+  xSemaphoreMutex = xSemaphoreCreateMutex();
+  if(xSemaphoreMutex == NULL) {
+    for(;;);
+  }
+  
   xTaskCreate(vTask1, "Task 1", 1024, NULL, 2, NULL);
   xTaskCreate(vTask2, "Task 2", 1024, NULL, 1, NULL);
   xTaskCreate(vTask3, "Task 3", 1024, NULL, 1, NULL);
