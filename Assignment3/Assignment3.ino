@@ -4,6 +4,8 @@
 
 #define LED1 15
 #define LED2 21
+#define BUTTON1 22
+#define BUTTON2 23
 #define NUM_TIMERS 7
 
 struct s_led {
@@ -18,44 +20,50 @@ static s_led leds[2] = {
   { LED2, 0, 500, 0 }
 };
 
+int button1State = 0;
 
-/*
-void foo(int counter) {
-  printf("foo() called  ... count = %d\n", counter);
-  vTaskDelay(1000);
-  unsigned int temp = uxTaskGetStackHighWaterMark(nullptr);
-  printf("high stack water mark is %u\n", temp);
-  foo(counter+1);
-  printf("\n");
-}
-*/
-
+//Output digital watchdog waveform
 void vTask1(void * pvParameters) {
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 5000;
-  const TickType_t xDelay = 500;
+  const TickType_t xFrequency = 9750;
+  const TickType_t xDelay = 50;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
-    for( ;; ) { // Wait for the next cycle.
-      vTaskDelayUntil( &xLastWakeTime, xFrequency );
+    for(;;) { // Wait for the next cycle.
       // Perform action here.
-      digitalWrite(LED2, HIGH);
+      digitalWrite(leds[1].gpio, HIGH);
       vTaskDelay(xDelay);
-      digitalWrite(LED2, LOW);
-      Serial.println("done");
+      digitalWrite(leds[1].gpio, LOW);
+      //Serial.println("done");
+      vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
-
 }
 
-
+//Monitor one digital input
+void vTask2(void * pvParameters) {
+  TickType_t xLastWakeTime;
+  const TickType_t xFrequency = 200;
+  
+  // Initialise the xLastWakeTime variable with the current time.
+  xLastWakeTime = xTaskGetTickCount();
+    for(;;) { // Wait for the next cycle.
+      // Perform action here.
+      button1State = digitalRead(BUTTON1);
+      //Serial.println(button1State);
+      vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
 
 void setup() {
   Serial.begin(115200);
   // put your setup code here, to run once:
   pinMode(leds[0].gpio, OUTPUT);
   pinMode(leds[1].gpio, OUTPUT);
+  
+  pinMode(BUTTON1, INPUT);
     
-  xTaskCreate(&vTask1, "Task 1", 1024, NULL, 5, NULL);
+  xTaskCreate(vTask1, "Task 1", 1024, NULL, 0, NULL);
+  xTaskCreate(vTask2, "Task 2", 1024, NULL, 1, NULL);
   
   //vTaskStartScheduler();
 }
