@@ -35,6 +35,7 @@ struct s_data {
 //globals
 static s_data serial_info = {0, 0, 0};
 static QueueHandle_t xQueueAnalogData;
+static QueueHandle_t error_data;
 static SemaphoreHandle_t mutex;
 
 int button1State = 0;
@@ -108,7 +109,7 @@ void vTask4(void * pvParameters) {
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       //analog_data = analogRead(ANALOG_SIG);
-      analog_data = 4096;
+      analog_data = 2000;
       xQueueSend(xQueueAnalogData, (void*) &analog_data, (TickType_t) 0);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
       //return analog_data;
@@ -182,6 +183,7 @@ void vTask6(void * pvParameters) {
 void vTask7(void * pvParameters) {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 333;
+  int error_code;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
@@ -195,7 +197,26 @@ void vTask7(void * pvParameters) {
           error_code = 0;
         }
         xSemaphoreGive(mutex);
+        xQueueSend(error_data, (void*) &error_code, (TickType_t) 0);
       }
+      vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+void vTask8(void * pvParameters) {
+  TickType_t xLastWakeTime;
+  const TickType_t xFrequency = 333;
+  int rxed_error_code;
+  // Initialise the xLastWakeTime variable with the current time.
+  xLastWakeTime = xTaskGetTickCount();
+    for(;;) { // Wait for the next cycle.
+      // Perform action here.
+      if( error_data != NULL) {
+        if (xQueueReceive(error_data, &(rxed_error_code), (TickType_t) 0) == pdTRUE) {
+          digitalWrite(leds[0].gpio, rxed_error_code);          
+        }
+      }   
+      
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -242,6 +263,11 @@ void setup() {
     for(;;);
   }
 
+  error_data = xQueueCreate(1, sizeof(int));
+  if(xQueueAnalogData == NULL) {
+    for(;;);
+  }
+
   mutex = xSemaphoreCreateMutex();
   if(mutex == NULL) {
     for(;;);
@@ -254,6 +280,7 @@ void setup() {
   xTaskCreate(vTask5, "Task 5", 4096, NULL, 1, NULL);
   xTaskCreate(vTask6, "Task 6", 1024, NULL, 1, NULL);
   xTaskCreate(vTask7, "Task 7", 1024, NULL, 1, NULL);
+  xTaskCreate(vTask8, "Task 8", 1024, NULL, 1, NULL);
   xTaskCreate(vTask9, "Task 9", 4096, NULL, 1, NULL);
 
   //xSemaphoreTake(mutex, portMAX_DELAY);
