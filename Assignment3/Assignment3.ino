@@ -31,16 +31,18 @@ struct s_data {
   int filtered_analog;
 };
 
+//globals
 static s_data serial_info = {0, 0, 0};
-
+static QueueHandle_t xQueueAnalogData;
+static SemaphoreHandle_t mutex;
 
 int button1State = 0;
 int pinData = 0;
 int wave_freq = 0;
 int analog_data = 0;
 
-static QueueHandle_t xQueueAnalogData;
-static SemaphoreHandle_t xSemaphore;
+
+/************ TASKS ************/
 
 //Output digital watchdog waveform
 void vTask1(void * pvParameters) {
@@ -68,7 +70,10 @@ void vTask2(void * pvParameters) {
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      button1State = digitalRead(BUTTON1);
+      if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+        serial_info.digitalState = digitalRead(BUTTON1);
+        xSemaphoreGive(mutex);
+      }
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -83,7 +88,7 @@ void vTask3(void * pvParameters) {
       // Perform action here.
       //pinData = pulseIn(SQUARE_WAVE_SIG, LOW);
       pinData = 2689;
-      wave_freq = 1/(2*pinData*POW_BASE10(-6));
+      serial_info.frequency = 1/(2*pinData*POW_BASE10(-6));
       //Serial.println(wave_freq);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -145,7 +150,7 @@ void vTask5(void * pvParameters) {
         //Serial.println(sum);
       }
       //Serial.println(sum);
-      average = sum/4;
+      serial_info.filtered_analog = sum/4;
       //Serial.println(average);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -171,18 +176,20 @@ void vTask9(void * pvParameters) {
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       //print the state of button 1
-      Serial.print(data1);
+      Serial.print(serial_info.digitalState);
       Serial.print(", ");
   
       //print the frequency of the 3.3v square wave signal
-      Serial.print(data2); 
+      Serial.print(serial_info.frequency); 
       Serial.print(", ");
       
       //print the filtered analog input
-      Serial.println(data3);
+      Serial.println(serial_info.filtered_analog);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
+
+/************ CREATION OF TASKS ************/
 
 void setup() {
   // put your setup code here, to run once:
@@ -199,8 +206,8 @@ void setup() {
     for(;;);
   }
 
-  xSemaphoreMutex = xSemaphoreCreateMutex();
-  if(xSemaphoreMutex == NULL) {
+  mutex = xSemaphoreCreateMutex();
+  if(mutex == NULL) {
     for(;;);
   }
   
@@ -210,6 +217,9 @@ void setup() {
   xTaskCreate(vTask4, "Task 4", 4096, NULL, 1, NULL);
   xTaskCreate(vTask5, "Task 5", 4096, NULL, 1, NULL);
   xTaskCreate(vTask6, "Task 6", 1024, NULL, 1, NULL);
+  xTaskCreate(vTask9, "Task 9", 4096, (void*)&serial_info, 1, NULL);
+
+  xSemaphoreTake(mutex, portMAX_DELAY);
 }
 
 void loop() {
