@@ -72,6 +72,7 @@ void vTask2(void * pvParameters) {
       // Perform action here.
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
         serial_info.digitalState = digitalRead(BUTTON1);
+        
         xSemaphoreGive(mutex);
       }
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -88,8 +89,12 @@ void vTask3(void * pvParameters) {
       // Perform action here.
       //pinData = pulseIn(SQUARE_WAVE_SIG, LOW);
       pinData = 2689;
-      serial_info.frequency = 1/(2*pinData*POW_BASE10(-6));
-      //Serial.println(wave_freq);
+      if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+        serial_info.frequency = 1/(2*pinData*POW_BASE10(-6));
+         //Serial.println(wave_freq);
+         
+        xSemaphoreGive(mutex);
+      }
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -150,8 +155,13 @@ void vTask5(void * pvParameters) {
         //Serial.println(sum);
       }
       //Serial.println(sum);
-      serial_info.filtered_analog = sum/4;
-      //Serial.println(average);
+      if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+        serial_info.filtered_analog = sum/4;
+        //Serial.println(average);
+        
+        xSemaphoreGive(mutex);
+      }
+      
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -175,17 +185,21 @@ void vTask9(void * pvParameters) {
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      //print the state of button 1
-      Serial.print(serial_info.digitalState);
-      Serial.print(", ");
-  
-      //print the frequency of the 3.3v square wave signal
-      Serial.print(serial_info.frequency); 
-      Serial.print(", ");
-      
-      //print the filtered analog input
-      Serial.println(serial_info.filtered_analog);
-      vTaskDelayUntil(&xLastWakeTime, xFrequency);
+      if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+        //print the state of button 1
+        Serial.print(serial_info.digitalState);
+        Serial.print(", ");
+    
+        //print the frequency of the 3.3v square wave signal
+        Serial.print(serial_info.frequency); 
+        Serial.print(", ");
+        
+        //print the filtered analog input
+        Serial.println(serial_info.filtered_analog);
+
+        xSemaphoreGive(mutex);
+      }
+       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
@@ -217,9 +231,9 @@ void setup() {
   xTaskCreate(vTask4, "Task 4", 4096, NULL, 1, NULL);
   xTaskCreate(vTask5, "Task 5", 4096, NULL, 1, NULL);
   xTaskCreate(vTask6, "Task 6", 1024, NULL, 1, NULL);
-  xTaskCreate(vTask9, "Task 9", 4096, (void*)&serial_info, 1, NULL);
+  xTaskCreate(vTask9, "Task 9", 4096, NULL, 1, NULL);
 
-  xSemaphoreTake(mutex, portMAX_DELAY);
+  //xSemaphoreTake(mutex, portMAX_DELAY);
 }
 
 void loop() {
