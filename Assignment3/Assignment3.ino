@@ -9,6 +9,7 @@
 #define BUTTON2 23
 #define SQUARE_WAVE_SIG 4
 #define ANALOG_SIG 0
+#define MAX_RANGE 4096
 #define NUM_TIMERS 7
 
 #define POW_BASE10(i) pow(10, i)
@@ -178,6 +179,27 @@ void vTask6(void * pvParameters) {
     }
 }
 
+void vTask7(void * pvParameters) {
+  TickType_t xLastWakeTime;
+  const TickType_t xFrequency = 333;
+  // Initialise the xLastWakeTime variable with the current time.
+  xLastWakeTime = xTaskGetTickCount();
+    for(;;) { // Wait for the next cycle.
+      // Perform action here.
+      if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+        if (serial_info.filtered_analog > (MAX_RANGE/2)) {
+          error_code = 1;
+        }
+        //otherwise stay LOW
+        else {
+          error_code = 0;
+        }
+        xSemaphoreGive(mutex);
+      }
+      vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
 void vTask9(void * pvParameters) {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 5000;
@@ -231,6 +253,7 @@ void setup() {
   xTaskCreate(vTask4, "Task 4", 4096, NULL, 1, NULL);
   xTaskCreate(vTask5, "Task 5", 4096, NULL, 1, NULL);
   xTaskCreate(vTask6, "Task 6", 1024, NULL, 1, NULL);
+  xTaskCreate(vTask7, "Task 7", 1024, NULL, 1, NULL);
   xTaskCreate(vTask9, "Task 9", 4096, NULL, 1, NULL);
 
   //xSemaphoreTake(mutex, portMAX_DELAY);
