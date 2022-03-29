@@ -10,6 +10,7 @@
 #define SQUARE_WAVE_SIG 4
 #define ANALOG_SIG 0
 #define MAX_RANGE 4096
+#define TEST_PIN 17
 #define NUM_TIMERS 7
 
 #define POW_BASE10(i) pow(10, i)
@@ -49,7 +50,7 @@ int analog_data = 0;
 //Output digital watchdog waveform
 void vTask1(void * pvParameters) {
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 9750;
+  const TickType_t xFrequency = 10;
   const TickType_t xDelay = 50;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
@@ -89,8 +90,8 @@ void vTask3(void * pvParameters) {
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      //pinData = pulseIn(SQUARE_WAVE_SIG, LOW);
-      pinData = 2689;
+      pinData = pulseIn(SQUARE_WAVE_SIG, LOW);
+      //pinData = 2689;
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
         serial_info.frequency = 1/(2*pinData*POW_BASE10(-6));
          //Serial.println(wave_freq);
@@ -108,8 +109,10 @@ void vTask4(void * pvParameters) {
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      //analog_data = analogRead(ANALOG_SIG);
-      analog_data = 2000;
+      analog_data = analogRead(ANALOG_SIG);
+      //Serial.println(analog_data);
+      //analog_data = 2000;
+
       xQueueSend(xQueueAnalogData, (void*) &analog_data, (TickType_t) 0);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
       //return analog_data;
@@ -119,34 +122,37 @@ void vTask4(void * pvParameters) {
 void vTask5(void * pvParameters) {
   TickType_t xLastWakeTime;
   int rxed_analog_data;
+  int data;
   int analog_array[4];
   int sum;
   int counter = 0;
   int average;
   const TickType_t xFrequency = 42; 
-  if( xQueueAnalogData != NULL) {
-    if (xQueueReceive(xQueueAnalogData, &(rxed_analog_data), (TickType_t) 0) == pdTRUE) {
-   
-    }
-  }
+  
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      switch(counter) {
+      if( xQueueAnalogData != NULL) {
+        if (xQueueReceive(xQueueAnalogData, &(rxed_analog_data), (TickType_t) 0) == pdTRUE) {
+          data = rxed_analog_data;
+        }
+      }
+     switch(counter) {
         case 0:
-          analog_array[counter] = rxed_analog_data;
+          analog_array[counter] = data;
           break;
         case 1:
-          analog_array[counter] = rxed_analog_data;
+          analog_array[counter] = data;
           break;
         case 2:
-          analog_array[counter] = rxed_analog_data;
+          analog_array[counter] = data;
           break;
         case 3:
-          analog_array[counter] = rxed_analog_data;
+          analog_array[counter] = data;
           break;
       }
+      
       counter++;
       if(counter == 4) {
         counter = 0;
@@ -251,20 +257,26 @@ void vTask9(void * pvParameters) {
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  vTaskDelay(2000 / portTICK_PERIOD_MS);
   
   pinMode(leds[0].gpio, OUTPUT);
   pinMode(leds[1].gpio, OUTPUT);
-  
+  pinMode(TEST_PIN, OUTPUT);
+
   pinMode(BUTTON1, INPUT);
+  pinMode(BUTTON2, INPUT);
+  pinMode(SQUARE_WAVE_SIG, INPUT);
+  pinMode(ANALOG_SIG, INPUT);
 
   xQueueAnalogData = xQueueCreate(1, sizeof(int));
   if(xQueueAnalogData == NULL) {
-    for(;;);
+    for(;;) {
+      Serial.print("queue fail");
+    }
   }
-
+ 
   error_data = xQueueCreate(1, sizeof(int));
-  if(xQueueAnalogData == NULL) {
+  if(error_data == NULL) {
     for(;;);
   }
 
@@ -273,11 +285,11 @@ void setup() {
     for(;;);
   }
   
-  xTaskCreate(vTask1, "Task 1", 1024, NULL, 2, NULL);
+  xTaskCreate(vTask1, "Task 1", 1024, NULL, 3, NULL);
   xTaskCreate(vTask2, "Task 2", 1024, NULL, 1, NULL);
-  xTaskCreate(vTask3, "Task 3", 1024, NULL, 1, NULL);
-  xTaskCreate(vTask4, "Task 4", 4096, NULL, 1, NULL);
-  xTaskCreate(vTask5, "Task 5", 4096, NULL, 1, NULL);
+  xTaskCreate(vTask3, "Task 3", 4096, NULL, 1, NULL);
+  xTaskCreate(vTask4, "Task 4", 8192, NULL, 2, NULL);
+  xTaskCreate(vTask5, "Task 5", 8192, NULL, 1, NULL);
   xTaskCreate(vTask6, "Task 6", 1024, NULL, 1, NULL);
   xTaskCreate(vTask7, "Task 7", 1024, NULL, 1, NULL);
   xTaskCreate(vTask8, "Task 8", 1024, NULL, 1, NULL);
@@ -288,5 +300,5 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  
+    
 }
