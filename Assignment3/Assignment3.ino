@@ -36,9 +36,9 @@ struct s_data {
 //globals
 static s_data serial_info = {0, 0, 0};
 static QueueHandle_t xQueueAnalogData;
-static QueueHandle_t error_data;
+static QueueHandle_t error_data_queue;
+static QueueHandle_t button_data_queue;
 static SemaphoreHandle_t mutex;
-
 int button1State = 0;
 int pinData = 0;
 int wave_freq = 0;
@@ -59,7 +59,7 @@ void vTask1(void * pvParameters) {
       digitalWrite(leds[1].gpio, HIGH);
       vTaskDelay(xDelay);
       digitalWrite(leds[1].gpio, LOW);
-      //Serial.println("done");
+      
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -68,16 +68,18 @@ void vTask1(void * pvParameters) {
 void vTask2(void * pvParameters) {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 200;
-  
+  int buttonState;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
-        serial_info.digitalState = digitalRead(BUTTON1);
-        
+        buttonState = digitalRead(BUTTON1);
+        serial_info.digitalState = buttonState;
         xSemaphoreGive(mutex);
+        
       }
+      xQueueSend(button_data_queue, (void*) &buttonState, (TickType_t) 0);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -90,8 +92,9 @@ void vTask3(void * pvParameters) {
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      pinData = pulseIn(SQUARE_WAVE_SIG, LOW);
+      pinData = pulseIn(SQUARE_WAVE_SIG, HIGH);
       //pinData = 2689;
+      
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
         serial_info.frequency = 1/(2*pinData*POW_BASE10(-6));
          //Serial.println(wave_freq);
@@ -99,6 +102,7 @@ void vTask3(void * pvParameters) {
         xSemaphoreGive(mutex);
       }
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
+      
     }
 }
 
@@ -122,7 +126,7 @@ void vTask4(void * pvParameters) {
 void vTask5(void * pvParameters) {
   TickType_t xLastWakeTime;
   int rxed_analog_data;
-  int data;
+  int an_data;
   int analog_array[4];
   int sum;
   int counter = 0;
@@ -131,47 +135,48 @@ void vTask5(void * pvParameters) {
   
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
-    for(;;) { // Wait for the next cycle.
-      // Perform action here.
-      if( xQueueAnalogData != NULL) {
-        if (xQueueReceive(xQueueAnalogData, &(rxed_analog_data), (TickType_t) 0) == pdTRUE) {
-          data = rxed_analog_data;
-        }
-      }
-     switch(counter) {
-        case 0:
-          analog_array[counter] = data;
-          break;
-        case 1:
-          analog_array[counter] = data;
-          break;
-        case 2:
-          analog_array[counter] = data;
-          break;
-        case 3:
-          analog_array[counter] = data;
-          break;
-      }
+  for(;;) { // Wait for the next cycle.
       
-      counter++;
-      if(counter == 4) {
-        counter = 0;
+    // Perform action here.
+    if( xQueueAnalogData != NULL) {
+      if (xQueueReceive(xQueueAnalogData, &(rxed_analog_data), (TickType_t) 10) == pdTRUE) {
+        an_data = rxed_analog_data;
       }
-      sum = 0;
-      for(int i = 0; i < 4; i++) {
-        sum += analog_array[i];
-        //Serial.println(sum);
-      }
-      //Serial.println(sum);
-      if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
-        serial_info.filtered_analog = sum/4;
-        //Serial.println(average);
-        
-        xSemaphoreGive(mutex);
-      }
-      
-      vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
+    switch(counter) {
+       case 0:
+         analog_array[counter] = an_data;
+         break;
+       case 1:
+         analog_array[counter] = an_data;
+         break;
+       case 2:
+         analog_array[counter] = an_data;
+         break;
+       case 3:
+         analog_array[counter] = an_data;
+         break;
+     }
+      
+     counter++;
+     if(counter == 4) {
+       counter = 0;
+     }
+     sum = 0;
+     for(int i = 0; i < 4; i++) {
+       sum += analog_array[i];
+       //Serial.println(sum);
+     }
+     //Serial.println(sum);
+     if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+       serial_info.filtered_analog = sum/4;
+       //Serial.println(serial_info.filtered_analog);
+       
+       xSemaphoreGive(mutex);
+     }
+      
+     vTaskDelayUntil(&xLastWakeTime, xFrequency);
+   }
 }
 
 void vTask6(void * pvParameters) {
@@ -203,7 +208,7 @@ void vTask7(void * pvParameters) {
           error_code = 0;
         }
         xSemaphoreGive(mutex);
-        xQueueSend(error_data, (void*) &error_code, (TickType_t) 0);
+        xQueueSend(error_data_queue, (void*) &error_code, (TickType_t) 0);
       }
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -217,8 +222,8 @@ void vTask8(void * pvParameters) {
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      if( error_data != NULL) {
-        if (xQueueReceive(error_data, &(rxed_error_code), (TickType_t) 0) == pdTRUE) {
+      if( error_data_queue != NULL) {
+        if (xQueueReceive(error_data_queue, &(rxed_error_code), (TickType_t) 0) == pdTRUE) {
           digitalWrite(leds[0].gpio, rxed_error_code);          
         }
       }   
@@ -230,22 +235,35 @@ void vTask8(void * pvParameters) {
 void vTask9(void * pvParameters) {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 5000;
+  int buttonState;
+  int rxed_button_data;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
+      if( button_data_queue != NULL) {
+        if (xQueueReceive(button_data_queue, &(rxed_button_data), (TickType_t) 0) == pdTRUE) {
+          buttonState = rxed_button_data;
+        }
+      }
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
-        //print the state of button 1
-        Serial.print(serial_info.digitalState);
-        Serial.print(", ");
-    
-        //print the frequency of the 3.3v square wave signal
-        Serial.print(serial_info.frequency); 
-        Serial.print(", ");
-        
-        //print the filtered analog input
-        Serial.println(serial_info.filtered_analog);
+        if(buttonState == 1) {
+          //print the state of button 1
+          Serial.print(serial_info.digitalState);
+          Serial.print(", ");
+      
+          //print the frequency of the 3.3v square wave signal
+          Serial.print(serial_info.frequency); 
+          Serial.print(", ");
+          
+          //print the filtered analog input
+          Serial.println(serial_info.filtered_analog);
 
+          
+        }
+        else{
+          Serial.println("button not pressed");
+        }
         xSemaphoreGive(mutex);
       }
        vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -271,25 +289,38 @@ void setup() {
   xQueueAnalogData = xQueueCreate(1, sizeof(int));
   if(xQueueAnalogData == NULL) {
     for(;;) {
-      Serial.print("queue fail");
+      Serial.println("analog queue fail");
     }
   }
  
-  error_data = xQueueCreate(1, sizeof(int));
-  if(error_data == NULL) {
-    for(;;);
+  error_data_queue = xQueueCreate(1, sizeof(int));
+  if(error_data_queue == NULL) {
+    for(;;) {
+      Serial.println("error_data queue fail");
+    }
+  }
+
+  button_data_queue = xQueueCreate(1, sizeof(int));
+  if(button_data_queue == NULL) {
+    for(;;) {
+      Serial.println("button queue fail");
+    }
   }
 
   mutex = xSemaphoreCreateMutex();
   if(mutex == NULL) {
-    for(;;);
+    for(;;) {
+      Serial.println("semaphore fail");
+    }
   }
   
   xTaskCreate(vTask1, "Task 1", 1024, NULL, 3, NULL);
-  xTaskCreate(vTask2, "Task 2", 1024, NULL, 1, NULL);
+  xTaskCreate(vTask2, "Task 2", 4096, NULL, 2, NULL);
+  Serial.println("oops");
   xTaskCreate(vTask3, "Task 3", 4096, NULL, 1, NULL);
-  xTaskCreate(vTask4, "Task 4", 8192, NULL, 2, NULL);
-  xTaskCreate(vTask5, "Task 5", 8192, NULL, 1, NULL);
+  
+  xTaskCreate(vTask4, "Task 4", 4096, NULL, 2, NULL);
+  xTaskCreate(vTask5, "Task 5", 4096, NULL, 1, NULL);
   xTaskCreate(vTask6, "Task 6", 1024, NULL, 1, NULL);
   xTaskCreate(vTask7, "Task 7", 1024, NULL, 1, NULL);
   xTaskCreate(vTask8, "Task 8", 1024, NULL, 1, NULL);
