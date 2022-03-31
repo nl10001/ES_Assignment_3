@@ -50,14 +50,14 @@ int analog_data = 0;
 //Output digital watchdog waveform
 void vTask1(void * pvParameters) {
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 10;
-  const TickType_t xDelay = 50;
+  const TickType_t xFrequency = 10 / portTICK_PERIOD_MS;
+  //const TickType_t xDelay = 0.05;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       digitalWrite(leds[1].gpio, HIGH);
-      vTaskDelay(xDelay);
+      delayMicroseconds(50);
       digitalWrite(leds[1].gpio, LOW);
       
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -73,13 +73,15 @@ void vTask2(void * pvParameters) {
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
+      digitalWrite(TEST_PIN, HIGH);
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
         buttonState = digitalRead(BUTTON1);
         serial_info.digitalState = buttonState;
         xSemaphoreGive(mutex);
-        
       }
+      
       xQueueSend(button_data_queue, (void*) &buttonState, (TickType_t) 0);
+      digitalWrite(TEST_PIN, LOW);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -316,13 +318,11 @@ void setup() {
   
   xTaskCreate(vTask1, "Task 1", 1024, NULL, 3, NULL);
   xTaskCreate(vTask2, "Task 2", 4096, NULL, 2, NULL);
-  Serial.println("oops");
-  xTaskCreate(vTask3, "Task 3", 4096, NULL, 1, NULL);
-  
+  xTaskCreate(vTask3, "Task 3", 4096, NULL, 1, NULL);  
   xTaskCreate(vTask4, "Task 4", 4096, NULL, 2, NULL);
   xTaskCreate(vTask5, "Task 5", 4096, NULL, 1, NULL);
-  xTaskCreate(vTask6, "Task 6", 1024, NULL, 1, NULL);
-  xTaskCreate(vTask7, "Task 7", 1024, NULL, 1, NULL);
+  xTaskCreate(vTask6, "Task 6", 4096, NULL, 1, NULL);
+  xTaskCreate(vTask7, "Task 7", 4096, NULL, 1, NULL);
   xTaskCreate(vTask8, "Task 8", 1024, NULL, 1, NULL);
   xTaskCreate(vTask9, "Task 9", 4096, NULL, 1, NULL);
 
