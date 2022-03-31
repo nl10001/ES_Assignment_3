@@ -1,4 +1,4 @@
-//9700us maybe +50 not sure
+//9750us for period of task1
 
 #include<stdio.h>
 #include<math.h>
@@ -8,59 +8,58 @@
 #define BUTTON1 22
 #define BUTTON2 23
 #define SQUARE_WAVE_SIG 4
-#define ANALOG_SIG 0
+#define ANALOG_SIG 2
 #define MAX_RANGE 4096
 #define TEST_PIN 17
 #define NUM_TIMERS 7
 
 #define POW_BASE10(i) pow(10, i)
 
-struct s_led {
-  byte          gpio;    // LED GPIO number
-  byte          state;  // LED state
-  unsigned      napms;  // Delay to use (ms)
-  TaskHandle_t  taskh;  // Task handle
-};
+//globals
 
-static s_led leds[2] = {
-  { LED1, 0, 1000, 0 },
-  { LED2, 0, 500, 0 }
-};
-
+//struct which holds the serial information
 struct s_data {
   int digitalState;
   int frequency;
   int filtered_analog;
 };
-
-//globals
+//creating variable of type s_data
 static s_data serial_info = {0, 0, 0};
+
+//queues to communicate data
 static QueueHandle_t xQueueAnalogData;
 static QueueHandle_t error_data_queue;
-static QueueHandle_t button_data_queue;
+
+//semaphore to protect against deadlocking
 static SemaphoreHandle_t mutex;
-int button1State = 0;
-int pinData = 0;
-int wave_freq = 0;
-int analog_data = 0;
+
+
+
+
+
+
 
 
 /************ TASKS ************/
 
 //Output digital watchdog waveform
 void vTask1(void * pvParameters) {
+  Serial.print("before - ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 10 / portTICK_PERIOD_MS;
+  const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
   //const TickType_t xDelay = 0.05;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      digitalWrite(leds[1].gpio, HIGH);
+      digitalWrite(LED2, HIGH);
       delayMicroseconds(50);
-      digitalWrite(leds[1].gpio, LOW);
+      digitalWrite(LED2, LOW);
       
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
+      Serial.print("after - ");
+      Serial.println(uxTaskGetStackHighWaterMark(NULL));
     }
 }
 
@@ -68,19 +67,16 @@ void vTask1(void * pvParameters) {
 void vTask2(void * pvParameters) {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 200;
-  int buttonState;
+  int button1State;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       digitalWrite(TEST_PIN, HIGH);
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
-        buttonState = digitalRead(BUTTON1);
-        serial_info.digitalState = buttonState;
+        serial_info.digitalState = digitalRead(BUTTON1);
         xSemaphoreGive(mutex);
       }
-      
-      xQueueSend(button_data_queue, (void*) &buttonState, (TickType_t) 0);
       digitalWrite(TEST_PIN, LOW);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -89,7 +85,8 @@ void vTask2(void * pvParameters) {
 void vTask3(void * pvParameters) {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 1000;
-  
+  int pinData;
+  int wave_freq;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
@@ -109,8 +106,10 @@ void vTask3(void * pvParameters) {
 }
 
 void vTask4(void * pvParameters) {
+  
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 42;
+  int analog_data;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
@@ -122,6 +121,7 @@ void vTask4(void * pvParameters) {
       xQueueSend(xQueueAnalogData, (void*) &analog_data, (TickType_t) 0);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
       //return analog_data;
+
     }
 }
 
@@ -226,7 +226,7 @@ void vTask8(void * pvParameters) {
       // Perform action here.
       if( error_data_queue != NULL) {
         if (xQueueReceive(error_data_queue, &(rxed_error_code), (TickType_t) 0) == pdTRUE) {
-          digitalWrite(leds[0].gpio, rxed_error_code);          
+          digitalWrite(LED1, rxed_error_code);          
         }
       }   
       
@@ -237,19 +237,12 @@ void vTask8(void * pvParameters) {
 void vTask9(void * pvParameters) {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 5000;
-  int buttonState;
-  int rxed_button_data;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      if( button_data_queue != NULL) {
-        if (xQueueReceive(button_data_queue, &(rxed_button_data), (TickType_t) 0) == pdTRUE) {
-          buttonState = rxed_button_data;
-        }
-      }
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
-        if(buttonState == 1) {
+        if(serial_info.digitalState == 1) {
           //print the state of button 1
           Serial.print(serial_info.digitalState);
           Serial.print(", ");
@@ -279,8 +272,8 @@ void setup() {
   Serial.begin(115200);
   vTaskDelay(2000 / portTICK_PERIOD_MS);
   
-  pinMode(leds[0].gpio, OUTPUT);
-  pinMode(leds[1].gpio, OUTPUT);
+  pinMode(LED1, OUTPUT);
+  pinMode(LED2, OUTPUT);
   pinMode(TEST_PIN, OUTPUT);
 
   pinMode(BUTTON1, INPUT);
@@ -299,13 +292,6 @@ void setup() {
   if(error_data_queue == NULL) {
     for(;;) {
       Serial.println("error_data queue fail");
-    }
-  }
-
-  button_data_queue = xQueueCreate(1, sizeof(int));
-  if(button_data_queue == NULL) {
-    for(;;) {
-      Serial.println("button queue fail");
     }
   }
 
