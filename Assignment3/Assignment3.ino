@@ -33,19 +33,10 @@ static QueueHandle_t error_data_queue;
 //semaphore to protect against deadlocking
 static SemaphoreHandle_t mutex;
 
-
-
-
-
-
-
-
 /************ TASKS ************/
 
 //Output digital watchdog waveform
 void vTask1(void * pvParameters) {
-  Serial.print("before - ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
   //const TickType_t xDelay = 0.05;
@@ -57,9 +48,7 @@ void vTask1(void * pvParameters) {
       delayMicroseconds(50);
       digitalWrite(LED2, LOW);
       
-      vTaskDelayUntil(&xLastWakeTime, xFrequency);
-      Serial.print("after - ");
-      Serial.println(uxTaskGetStackHighWaterMark(NULL));
+      vTaskDelayUntil(&xLastWakeTime, xFrequency);      
     }
 }
 
@@ -79,6 +68,7 @@ void vTask2(void * pvParameters) {
       }
       digitalWrite(TEST_PIN, LOW);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
+      
     }
 }
 
@@ -121,7 +111,7 @@ void vTask4(void * pvParameters) {
       xQueueSend(xQueueAnalogData, (void*) &analog_data, (TickType_t) 0);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
       //return analog_data;
-
+      
     }
 }
 
@@ -178,6 +168,7 @@ void vTask5(void * pvParameters) {
      }
       
      vTaskDelayUntil(&xLastWakeTime, xFrequency);
+     
    }
 }
 
@@ -190,6 +181,7 @@ void vTask6(void * pvParameters) {
       // Perform action here.
       __asm__ __volatile__ ("nop");
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
+      
     }
 }
 
@@ -213,6 +205,7 @@ void vTask7(void * pvParameters) {
         xQueueSend(error_data_queue, (void*) &error_code, (TickType_t) 0);
       }
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
+     
     }
 }
 
@@ -231,6 +224,7 @@ void vTask8(void * pvParameters) {
       }   
       
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
+      
     }
 }
 
@@ -262,6 +256,7 @@ void vTask9(void * pvParameters) {
         xSemaphoreGive(mutex);
       }
        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+       //Serial.println(uxTaskGetStackHighWaterMark(NULL));
     }
 }
 
@@ -302,15 +297,15 @@ void setup() {
     }
   }
   
-  xTaskCreate(vTask1, "Task 1", 1024, NULL, 3, NULL);
-  xTaskCreate(vTask2, "Task 2", 4096, NULL, 2, NULL);
-  xTaskCreate(vTask3, "Task 3", 4096, NULL, 1, NULL);  
-  xTaskCreate(vTask4, "Task 4", 4096, NULL, 2, NULL);
-  xTaskCreate(vTask5, "Task 5", 4096, NULL, 1, NULL);
-  xTaskCreate(vTask6, "Task 6", 4096, NULL, 1, NULL);
-  xTaskCreate(vTask7, "Task 7", 4096, NULL, 1, NULL);
-  xTaskCreate(vTask8, "Task 8", 1024, NULL, 1, NULL);
-  xTaskCreate(vTask9, "Task 9", 4096, NULL, 1, NULL);
+  xTaskCreate(vTask1, "Task 1", 550, NULL, 3, NULL);
+  xTaskCreate(vTask2, "Task 2", 550, NULL, 2, NULL);
+  xTaskCreate(vTask3, "Task 3", 550, NULL, 1, NULL);  
+  xTaskCreate(vTask4, "Task 4", 800, NULL, 2, NULL);
+  xTaskCreate(vTask5, "Task 5", 550, NULL, 1, NULL);
+  xTaskCreate(vTask6, "Task 6", 550, NULL, 1, NULL);
+  xTaskCreate(vTask7, "Task 7", 550, NULL, 1, NULL);
+  xTaskCreate(vTask8, "Task 8", 550, NULL, 1, NULL);
+  xTaskCreate(vTask9, "Task 9", 550, NULL, 1, NULL);
 
   //xSemaphoreTake(mutex, portMAX_DELAY);
 }
