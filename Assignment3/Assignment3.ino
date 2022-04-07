@@ -33,6 +33,7 @@ static QueueHandle_t error_data_queue;
 //semaphore to protect against deadlocking
 static SemaphoreHandle_t mutex;
 
+
 /************ TASKS ************/
 
 //Output digital watchdog waveform
@@ -66,6 +67,7 @@ void vTask2(void * pvParameters) {
         serial_info.digitalState = digitalRead(BUTTON1);
         xSemaphoreGive(mutex);
       }
+
       digitalWrite(TEST_PIN, LOW);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
       
@@ -130,7 +132,7 @@ void vTask5(void * pvParameters) {
   for(;;) { // Wait for the next cycle.
       
     // Perform action here.
-    if( xQueueAnalogData != NULL) {
+    if(xQueueAnalogData != NULL) {
       if (xQueueReceive(xQueueAnalogData, &(rxed_analog_data), (TickType_t) 10) == pdTRUE) {
         an_data = rxed_analog_data;
       }
@@ -194,7 +196,7 @@ void vTask7(void * pvParameters) {
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
-        if (serial_info.filtered_analog > (MAX_RANGE/2)) {
+        if(serial_info.filtered_analog > (MAX_RANGE/2)) {
           error_code = 1;
         }
         //otherwise stay LOW
@@ -218,7 +220,7 @@ void vTask8(void * pvParameters) {
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       if( error_data_queue != NULL) {
-        if (xQueueReceive(error_data_queue, &(rxed_error_code), (TickType_t) 0) == pdTRUE) {
+        if(xQueueReceive(error_data_queue, &(rxed_error_code), (TickType_t) 0) == pdTRUE) {
           digitalWrite(LED1, rxed_error_code);          
         }
       }   
@@ -236,6 +238,7 @@ void vTask9(void * pvParameters) {
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+        
         if(serial_info.digitalState == 1) {
           //print the state of button 1
           Serial.print(serial_info.digitalState);
@@ -250,13 +253,15 @@ void vTask9(void * pvParameters) {
 
           
         }
-        else{
+        else {
           Serial.println("button not pressed");
         }
         xSemaphoreGive(mutex);
+        
       }
-       vTaskDelayUntil(&xLastWakeTime, xFrequency);
-       //Serial.println(uxTaskGetStackHighWaterMark(NULL));
+      
+      vTaskDelayUntil(&xLastWakeTime, xFrequency);
+      //Serial.println(uxTaskGetStackHighWaterMark(NULL));
     }
 }
 
@@ -297,8 +302,8 @@ void setup() {
     }
   }
   
-  xTaskCreate(vTask1, "Task 1", 550, NULL, 3, NULL);
-  xTaskCreate(vTask2, "Task 2", 550, NULL, 2, NULL);
+  xTaskCreate(vTask1, "Task 1", 550, NULL, 4, NULL);
+  xTaskCreate(vTask2, "Task 2", 550, NULL, 3, NULL);
   xTaskCreate(vTask3, "Task 3", 550, NULL, 1, NULL);  
   xTaskCreate(vTask4, "Task 4", 800, NULL, 2, NULL);
   xTaskCreate(vTask5, "Task 5", 550, NULL, 1, NULL);
@@ -306,7 +311,6 @@ void setup() {
   xTaskCreate(vTask7, "Task 7", 550, NULL, 1, NULL);
   xTaskCreate(vTask8, "Task 8", 550, NULL, 1, NULL);
   xTaskCreate(vTask9, "Task 9", 550, NULL, 1, NULL);
-
   //xSemaphoreTake(mutex, portMAX_DELAY);
 }
 
