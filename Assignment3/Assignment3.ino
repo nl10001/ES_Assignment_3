@@ -3,6 +3,7 @@
 #include<stdio.h>
 #include<math.h>
 
+
 #define LED1 15
 #define LED2 21
 #define BUTTON1 22
@@ -11,7 +12,6 @@
 #define ANALOG_SIG 2
 #define MAX_RANGE 4096
 #define TEST_PIN 17
-#define NUM_TIMERS 7
 
 #define POW_BASE10(i) pow(10, i)
 
@@ -34,6 +34,7 @@ static QueueHandle_t error_data_queue;
 static SemaphoreHandle_t mutex;
 
 TaskHandle_t task9;
+
 
 /************ TASKS ************/
 
@@ -59,6 +60,7 @@ void vTask2(void * pvParameters) {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 200;
   int button1State;
+  int counter = 0;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
@@ -66,13 +68,17 @@ void vTask2(void * pvParameters) {
       digitalWrite(TEST_PIN, HIGH);
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
         serial_info.digitalState = digitalRead(BUTTON1);
-        if(serial_info.digitalState == 1) {
-          vTaskResume(task9);
+        if((counter % 25) == 0) {
+          if(serial_info.digitalState == 1) {
+            vTaskResume(task9);
+          }
         }
+       
         xSemaphoreGive(mutex);
       }
       digitalWrite(TEST_PIN, LOW);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
+      counter++;
     }
 }
 
@@ -237,13 +243,13 @@ void vTask9(void * pvParameters) {
           Serial.println(serial_info.filtered_analog);          
         }
         else {
-          vTaskSuspend(NULL);
           Serial.println("button not pressed");
           
         }
         xSemaphoreGive(mutex);
       }
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
+      vTaskSuspend(NULL);
       //Serial.println(uxTaskGetStackHighWaterMark(NULL));
     }
 }
@@ -263,6 +269,8 @@ void setup() {
   pinMode(BUTTON2, INPUT);
   pinMode(SQUARE_WAVE_SIG, INPUT);
   pinMode(ANALOG_SIG, INPUT);
+
+
 
   xQueueAnalogData = xQueueCreate(1, sizeof(int));
   if(xQueueAnalogData == NULL) {
@@ -289,12 +297,13 @@ void setup() {
   xTaskCreate(vTask2, "Task 2", 550, NULL, 3, NULL);
   xTaskCreate(vTask3, "Task 3", 550, NULL, 1, NULL);  
   xTaskCreate(vTask4, "Task 4", 800, NULL, 2, NULL);
-  xTaskCreate(vTask5, "Task 5", 550, NULL, 1, NULL);
+  xTaskCreate(vTask5, "Task 5", 800, NULL, 1, NULL);
   xTaskCreate(vTask6, "Task 6", 550, NULL, 1, NULL);
   xTaskCreate(vTask7, "Task 7", 550, NULL, 1, NULL);
   xTaskCreate(vTask8, "Task 8", 550, NULL, 1, NULL);
   xTaskCreate(vTask9, "Task 9", 550, NULL, 1, &task9);
   vTaskSuspend(task9);
+
 }
 
 void loop() {
