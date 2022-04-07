@@ -19,7 +19,7 @@
 
 //struct which holds the serial information
 struct s_data {
-  int digitalState;
+  int digitalState;   
   int frequency;
   int filtered_analog;
 };
@@ -33,8 +33,10 @@ static QueueHandle_t error_data_queue;
 //semaphore to protect against deadlocking
 static SemaphoreHandle_t mutex;
 
+TaskHandle_t task9;
 
 /************ TASKS ************/
+
 
 //Output digital watchdog waveform
 void vTask1(void * pvParameters) {
@@ -48,7 +50,6 @@ void vTask1(void * pvParameters) {
       digitalWrite(LED2, HIGH);
       delayMicroseconds(50);
       digitalWrite(LED2, LOW);
-      
       vTaskDelayUntil(&xLastWakeTime, xFrequency);      
     }
 }
@@ -65,12 +66,13 @@ void vTask2(void * pvParameters) {
       digitalWrite(TEST_PIN, HIGH);
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
         serial_info.digitalState = digitalRead(BUTTON1);
+        if(serial_info.digitalState == 1) {
+          vTaskResume(task9);
+        }
         xSemaphoreGive(mutex);
       }
-
       digitalWrite(TEST_PIN, LOW);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
-      
     }
 }
 
@@ -84,21 +86,16 @@ void vTask3(void * pvParameters) {
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       pinData = pulseIn(SQUARE_WAVE_SIG, HIGH);
-      //pinData = 2689;
-      
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
         serial_info.frequency = 1/(2*pinData*POW_BASE10(-6));
          //Serial.println(wave_freq);
-         
         xSemaphoreGive(mutex);
       }
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
-      
     }
 }
 
 void vTask4(void * pvParameters) {
-  
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 42;
   int analog_data;
@@ -108,12 +105,9 @@ void vTask4(void * pvParameters) {
       // Perform action here.
       analog_data = analogRead(ANALOG_SIG);
       //Serial.println(analog_data);
-      //analog_data = 2000;
-
       xQueueSend(xQueueAnalogData, (void*) &analog_data, (TickType_t) 0);
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
       //return analog_data;
-      
     }
 }
 
@@ -130,7 +124,6 @@ void vTask5(void * pvParameters) {
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
   for(;;) { // Wait for the next cycle.
-      
     // Perform action here.
     if(xQueueAnalogData != NULL) {
       if (xQueueReceive(xQueueAnalogData, &(rxed_analog_data), (TickType_t) 10) == pdTRUE) {
@@ -151,7 +144,6 @@ void vTask5(void * pvParameters) {
          analog_array[counter] = an_data;
          break;
      }
-      
      counter++;
      if(counter == 4) {
        counter = 0;
@@ -165,12 +157,9 @@ void vTask5(void * pvParameters) {
      if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
        serial_info.filtered_analog = sum/4;
        //Serial.println(serial_info.filtered_analog);
-       
        xSemaphoreGive(mutex);
      }
-      
      vTaskDelayUntil(&xLastWakeTime, xFrequency);
-     
    }
 }
 
@@ -183,7 +172,6 @@ void vTask6(void * pvParameters) {
       // Perform action here.
       __asm__ __volatile__ ("nop");
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
-      
     }
 }
 
@@ -207,7 +195,6 @@ void vTask7(void * pvParameters) {
         xQueueSend(error_data_queue, (void*) &error_code, (TickType_t) 0);
       }
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
-     
     }
 }
 
@@ -224,9 +211,7 @@ void vTask8(void * pvParameters) {
           digitalWrite(LED1, rxed_error_code);          
         }
       }   
-      
-      vTaskDelayUntil(&xLastWakeTime, xFrequency);
-      
+      vTaskDelayUntil(&xLastWakeTime, xFrequency); 
     }
 }
 
@@ -238,8 +223,8 @@ void vTask9(void * pvParameters) {
     for(;;) { // Wait for the next cycle.
       // Perform action here.
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
-        
         if(serial_info.digitalState == 1) {
+          
           //print the state of button 1
           Serial.print(serial_info.digitalState);
           Serial.print(", ");
@@ -249,17 +234,15 @@ void vTask9(void * pvParameters) {
           Serial.print(", ");
           
           //print the filtered analog input
-          Serial.println(serial_info.filtered_analog);
-
-          
+          Serial.println(serial_info.filtered_analog);          
         }
         else {
+          vTaskSuspend(NULL);
           Serial.println("button not pressed");
+          
         }
         xSemaphoreGive(mutex);
-        
       }
-      
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
       //Serial.println(uxTaskGetStackHighWaterMark(NULL));
     }
@@ -310,8 +293,8 @@ void setup() {
   xTaskCreate(vTask6, "Task 6", 550, NULL, 1, NULL);
   xTaskCreate(vTask7, "Task 7", 550, NULL, 1, NULL);
   xTaskCreate(vTask8, "Task 8", 550, NULL, 1, NULL);
-  xTaskCreate(vTask9, "Task 9", 550, NULL, 1, NULL);
-  //xSemaphoreTake(mutex, portMAX_DELAY);
+  xTaskCreate(vTask9, "Task 9", 550, NULL, 1, &task9);
+  vTaskSuspend(task9);
 }
 
 void loop() {
