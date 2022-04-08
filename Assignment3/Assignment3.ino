@@ -46,11 +46,13 @@ void vTask1(void * pvParameters) {
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
+      digitalWrite(TEST_PIN, HIGH);
       // Perform action here.
       //sigB waveform from assingment 1
       digitalWrite(LED2, HIGH);
       delayMicroseconds(50);
       digitalWrite(LED2, LOW);
+      digitalWrite(TEST_PIN, LOW);
       //delayuntil function which executes task at rate set in xFrequency
       vTaskDelayUntil(&xLastWakeTime, xFrequency);      
     }
@@ -62,14 +64,16 @@ void vTask2(void * pvParameters) {
   const TickType_t xFrequency = 200 / portTICK_PERIOD_MS;
   int button1State;
   int counter = 0;
+  //frequency at which the state of the button will be checked
+  int check_freq = 5000/xFrequency;
   // Initialise the xLastWakeTime variable with the current time.
   xLastWakeTime = xTaskGetTickCount();
     for(;;) { // Wait for the next cycle.
       // Perform action here.
-      digitalWrite(TEST_PIN, HIGH);
+      
       if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
         serial_info.digitalState = digitalRead(BUTTON1);
-        if((counter % 25) == 0) {
+        if((counter % check_freq) == 0) {
           if(serial_info.digitalState == 1) {
             vTaskResume(task9);
           }
@@ -77,7 +81,7 @@ void vTask2(void * pvParameters) {
        
         xSemaphoreGive(mutex);
       }
-      digitalWrite(TEST_PIN, LOW);
+
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
       counter++;
     }
